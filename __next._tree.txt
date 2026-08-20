@@ -1,5 +1,5 @@
-:HL["/logs-anonymizer/_next/static/chunks/70f31ec0c825ce6b.css","style"]
+:HL["/logs-anonymizer/_next/static/chunks/5289648493895c38.css","style"]
 :HL["/logs-anonymizer/_next/static/media/797e433ab948586e-s.p.29207c2f.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/logs-anonymizer/_next/static/media/caa3a2e1cccd8315-s.p.3b6cae6d.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["https://yukhyshell5.github.io/theme.css","style"]
-0:{"buildId":"2IWG18lan07InzqEEP4tV","tree":{"name":"","paramType":null,"paramKey":"","hasRuntimePrefetch":false,"slots":{"children":{"name":"__PAGE__","paramType":null,"paramKey":"__PAGE__","hasRuntimePrefetch":false,"slots":null,"isRootLayout":false}},"isRootLayout":true},"staleTime":300}
+0:{"buildId":"_e45q7wDGmSrXPJQ2IqxW","tree":{"name":"","paramType":null,"paramKey":"","hasRuntimePrefetch":false,"slots":{"children":{"name":"__PAGE__","paramType":null,"paramKey":"__PAGE__","hasRuntimePrefetch":false,"slots":null,"isRootLayout":false}},"isRootLayout":true},"staleTime":300}
