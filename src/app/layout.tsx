@@ -32,6 +32,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <div className="ys-topbar">
+          <a href="https://yukhyshell5.github.io/" className="ys-topbar-brand">
+            ❯ yukhyShell5
+          </a>
+          <span className="ys-topbar-sep">/</span>
+          <span className="ys-topbar-tool">logs-anonymizer</span>
+          <a href="https://yukhyshell5.github.io/" className="ys-topbar-home">
+            portfolio ↗
+          </a>
+        </div>
         <ThemeProvider>
           {children}
           <Toaster />

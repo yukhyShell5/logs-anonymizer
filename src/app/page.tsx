@@ -180,7 +180,7 @@ export default function Home() {
   }, [rules, anonymizedText, canUndo, canRedo, undo, redo]);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-purple-950/20 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-purple-950/20 overflow-hidden pt-[2.25rem]">
       {/* Header */}
       <header className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50 flex-shrink-0">
         <div className="max-w-[1800px] mx-auto px-6 py-3 flex items-center justify-between">
