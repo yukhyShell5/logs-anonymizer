@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Wand2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -50,13 +51,15 @@ const REGEX_COMPONENTS = {
     { label: "Négation", pattern: "[^]", desc: "Classe négative" },
   ],
   common: [
-    { label: "Email", pattern: "[\\w.-]+@[\\w.-]+\\.\\w+", desc: "Adresse email" },
-    { label: "IPv4", pattern: "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b", desc: "Adresse IP" },
+    { label: "Email", pattern: "[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}", desc: "Adresse email" },
+    { label: "IPv4", pattern: "\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b", desc: "Adresse IP" },
     { label: "URL", pattern: "https?://[^\\s]+", desc: "URL HTTP(S)" },
-    { label: "UUID", pattern: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", desc: "UUID" },
+    { label: "UUID", pattern: "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", desc: "UUID" },
     { label: "Date ISO", pattern: "\\d{4}-\\d{2}-\\d{2}", desc: "YYYY-MM-DD" },
     { label: "Heure", pattern: "\\d{2}:\\d{2}:\\d{2}", desc: "HH:MM:SS" },
-    { label: "Téléphone FR", pattern: "(?:\\+33|0)[1-9](?:[\\s.-]?\\d{2}){4}", desc: "+33 ou 0..." },
+    { label: "Téléphone", pattern: "(?:\\+33[\\s.-]?(?:\\(0\\)[\\s.-]?)?|0)[1-9](?:[\\s.-]?\\d{2}){4}\\b", desc: "+33 ou 0..." },
+    { label: "Bearer Token", pattern: "Bearer\\s+[a-zA-Z0-9_.~+/=-]+", desc: "Token d'autorisation" },
+    { label: "JWT", pattern: "eyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+", desc: "JSON Web Token" },
   ],
 };
 
@@ -95,15 +98,15 @@ export function RegexBuilder({ onPatternCreate, testText = "" }: RegexBuilderPro
 
   return (
     <>
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
-        </svg>
-        Builder
-      </button>
+        <Wand2 className="w-3.5 h-3.5 text-purple-400" />
+        <span>Builder</span>
+      </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-auto">

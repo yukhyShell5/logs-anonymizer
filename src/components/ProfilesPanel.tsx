@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AnonymizationRule, RuleProfile } from "@/lib/anonymizer";
 import { loadProfiles, saveProfile, deleteProfile } from "@/lib/storage";
+import { SlidersHorizontal, Plus, Trash2, FolderDown } from "lucide-react";
 
 interface ProfilesPanelProps {
   currentRules: AnonymizationRule[];
@@ -21,23 +27,26 @@ export function ProfilesPanel({ currentRules, onLoadProfile }: ProfilesPanelProp
   const [newProfileName, setNewProfileName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
 
-  useEffect(() => {
-    setProfiles(loadProfiles());
-  }, [isOpen]);
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (open) {
+      setProfiles(loadProfiles());
+    }
+  };
 
   const handleSave = () => {
     if (!newProfileName.trim()) return;
-    saveProfile(newProfileName, currentRules);
+    saveProfile(newProfileName.trim(), currentRules);
     setProfiles(loadProfiles());
     setNewProfileName("");
     setShowSaveForm(false);
-    toast.success("Profil sauvegardé", { description: newProfileName });
+    toast.success("Profil de règles sauvegardé", { description: newProfileName });
   };
 
   const handleLoad = (profile: RuleProfile) => {
     onLoadProfile(profile.rules);
     setIsOpen(false);
-    toast.success("Profil chargé", { description: profile.name });
+    toast.success("Profil appliqué", { description: `${profile.name} (${profile.rules.length} règles)` });
   };
 
   const handleDelete = (id: string, name: string) => {
@@ -47,95 +56,138 @@ export function ProfilesPanel({ currentRules, onLoadProfile }: ProfilesPanelProp
   };
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setProfiles(loadProfiles());
+          setIsOpen(true);
+        }}
+        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-        Profils ({profiles.length})
-      </button>
+        <SlidersHorizontal className="w-3.5 h-3.5 text-purple-400" />
+        <span>Profils</span>
+        {profiles.length > 0 && (
+          <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-purple-500/10 text-purple-400 border-purple-500/20">
+            {profiles.length}
+          </Badge>
+        )}
+      </Button>
 
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <Card className="absolute right-0 top-8 z-50 w-72 p-3 bg-card/95 backdrop-blur shadow-xl">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Profils de règles</span>
-              <button
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-4">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <SlidersHorizontal className="w-4 h-4 text-purple-400" />
+                Profils de Règles
+              </DialogTitle>
+              <Button
+                size="sm"
+                variant={showSaveForm ? "secondary" : "outline"}
                 onClick={() => setShowSaveForm(!showSaveForm)}
-                className="p-1.5 text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-                title="Nouveau profil"
+                className="h-7 text-xs gap-1"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+                <Plus className="w-3.5 h-3.5" />
+                Sauvegarder l&apos;état actuel
+              </Button>
             </div>
+          </DialogHeader>
 
-            {/* Formulaire de sauvegarde */}
-            {showSaveForm && (
-              <div className="mb-3 p-2 bg-muted/50 rounded flex gap-2">
+          {/* Formulaire de sauvegarde */}
+          {showSaveForm && (
+            <div className="p-3 bg-muted/40 border border-border/60 rounded-lg space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Enregistre les {currentRules.length} règles actuelles sous un nom de profil :
+              </p>
+              <div className="flex gap-2">
                 <Input
                   value={newProfileName}
                   onChange={(e) => setNewProfileName(e.target.value)}
-                  placeholder="Nom du profil..."
-                  className="h-8 text-sm"
+                  placeholder="Ex: Production AWS, Audit Sécurité..."
+                  className="h-8 text-xs flex-1"
+                  autoFocus
                   onKeyDown={(e) => e.key === "Enter" && handleSave()}
                 />
-                <Button size="sm" onClick={handleSave} disabled={!newProfileName.trim()}>
-                  Sauver
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!newProfileName.trim()}
+                  className="h-8 text-xs bg-purple-600 hover:bg-purple-500"
+                >
+                  Enregistrer
                 </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Liste des profils */}
-            <ScrollArea className="max-h-64">
+          {/* Liste des profils */}
+          <div className="flex-1 min-h-0 pt-2">
+            <ScrollArea className="max-h-72 pr-2">
               {profiles.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  Aucun profil sauvegardé
-                </p>
+                <div className="text-center py-10 text-muted-foreground text-xs">
+                  <p>Aucun profil sauvegardé</p>
+                  <p className="text-[11px] mt-1 text-muted-foreground/70">
+                    Créez un profil pour mémoriser et réappliquer rapidement vos jeux de règles favoris.
+                  </p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {profiles.map((profile) => (
                     <div
                       key={profile.id}
-                      className="p-2 rounded bg-muted/50 hover:bg-muted transition-colors group"
+                      className="p-3 rounded-lg bg-card/60 border border-border/50 hover:border-purple-500/40 hover:bg-muted/40 transition-all flex items-center justify-between gap-3 group"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <button
+                      <button
+                        onClick={() => handleLoad(profile)}
+                        className="flex-1 text-left min-w-0"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-foreground group-hover:text-purple-400 transition-colors">
+                            {profile.name}
+                          </span>
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-normal">
+                            {profile.rules.length} règle{profile.rules.length > 1 ? "s" : ""}
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Enregistré le {new Date(profile.createdAt).toLocaleDateString("fr-FR", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </p>
+                      </button>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => handleLoad(profile)}
-                          className="flex-1 text-left"
+                          className="h-7 px-2 text-xs gap-1 text-purple-400 hover:text-purple-300"
                         >
-                          <p className="text-sm font-medium">{profile.name}</p>
-                          <div className="flex gap-2 mt-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {profile.rules.length} règle{profile.rules.length !== 1 ? "s" : ""}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(profile.createdAt).toLocaleDateString("fr-FR")}
-                            </span>
-                          </div>
-                        </button>
-                        <button
+                          <FolderDown className="w-3.5 h-3.5" />
+                          Charger
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           onClick={() => handleDelete(profile.id, profile.name)}
-                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-all"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Supprimer"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </ScrollArea>
-          </Card>
-        </>
-      )}
-    </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

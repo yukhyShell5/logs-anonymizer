@@ -2,17 +2,16 @@ import { AnonymizationRule, PRESET_RULES, HIGHLIGHT_COLORS } from "./anonymizer"
 
 // Patterns pour l'auto-détection
 const AUTO_DETECT_PATTERNS = [
-  { regex: /[\w.-]+@[\w.-]+\.\w+/g, label: "EMAIL", preset: "EMAIL" },
-  { regex: /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, label: "IP", preset: "IP" },
-  { regex: /[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g, label: "UUID", preset: "UUID" },
-  { regex: /eyJ[\w-]+\.[\w-]+\.[\w-]+/g, label: "JWT", preset: "JWT" },
-  { regex: /(?:\+33|0)[1-9](?:[\s.-]?\d{2}){4}/g, label: "PHONE", preset: "PHONE" },
-  { regex: /Bearer\s+[A-Za-z0-9-_]{20,}/g, label: "TOKEN", preset: "TOKEN" },
+  { regex: /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g, label: "EMAIL", preset: "EMAIL" },
+  { regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g, label: "IP", preset: "IP" },
+  { regex: /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g, label: "UUID", preset: "UUID" },
+  { regex: /(?:\+33[\s.-]?(?:\(0\)[\s.-]?)?|0)[1-9](?:[\s.-]?\d{2}){4}\b|\+\d{1,3}[\s.-]?(?:\([0-9]{1,4}\)[\s.-]?)?[0-9]{3,4}[\s.-]?[0-9]{3,4}\b/g, label: "PHONE", preset: "PHONE" },
+  { regex: /Bearer\s+[a-zA-Z0-9_.~+/=-]+|\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b|\b(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})\b/g, label: "TOKEN", preset: "TOKEN" },
+  { regex: /\beyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\b/g, label: "JWT", preset: "JWT" },
   // Patterns supplémentaires
-  { regex: /\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/g, label: "NOM", preset: null },
-  { regex: /\/[a-zA-Z0-9._/-]+\.[a-z]{2,4}\b/g, label: "PATH", preset: null },
+  { regex: /\b(?:[0-9A-Fa-f]{2}[:-]){5}(?:[0-9A-Fa-f]{2})\b/g, label: "MAC", preset: "MAC" },
   { regex: /https?:\/\/[^\s<>"{}|\\^`[\]]+/g, label: "URL", preset: null },
-  { regex: /\b\d{4}[-/]\d{2}[-/]\d{2}(?:[\sT]\d{2}:\d{2}:\d{2})?\b/g, label: "DATE", preset: null },
+  { regex: /\b\d{4}[-/]\d{2}[-/]\d{2}(?:[\sT]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)?\b/g, label: "DATE", preset: null },
 ];
 
 export interface SuggestedRule {

@@ -1,8 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
-import { Card } from "@/components/ui/card";
+import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { GitCompare, Filter } from "lucide-react";
 
 interface DiffViewProps {
   original: string;
@@ -12,12 +20,15 @@ interface DiffViewProps {
 }
 
 export function DiffView({ original, anonymized, isOpen, onClose }: DiffViewProps) {
+  const [onlyChanged, setOnlyChanged] = useState(false);
+
   // Créer un diff ligne par ligne
   const diffLines = useMemo(() => {
-    const originalLines = original.split("\n");
-    const anonymizedLines = anonymized.split("\n");
+    if (!original && !anonymized) return [];
+    const originalLines = (original || "").split("\n");
+    const anonymizedLines = (anonymized || "").split("\n");
     const maxLines = Math.max(originalLines.length, anonymizedLines.length);
-    
+
     const lines: Array<{
       lineNum: number;
       original: string;
@@ -40,88 +51,114 @@ export function DiffView({ original, anonymized, isOpen, onClose }: DiffViewProp
   }, [original, anonymized]);
 
   const changedCount = diffLines.filter((l) => l.hasChanges).length;
-
-  if (!isOpen) return null;
+  const displayedLines = onlyChanged ? diffLines.filter((l) => l.hasChanges) : diffLines;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="w-full max-w-6xl h-[80vh] flex flex-col bg-card shadow-2xl">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-6xl w-[95vw] h-[85vh] flex flex-col p-4">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold">Mode Diff</h2>
-            <span className="text-sm text-muted-foreground">
-              {changedCount} ligne{changedCount !== 1 ? "s" : ""} modifiée{changedCount !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+        <DialogHeader className="shrink-0">
+          <div className="flex items-center justify-between pr-6 pb-2 border-b border-border/60">
+            <div className="flex items-center gap-3">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <GitCompare className="w-4 h-4 text-purple-400" />
+                Comparateur Diff Ligne par Ligne
+              </DialogTitle>
+              <Badge variant="secondary" className="text-xs">
+                {changedCount} ligne{changedCount > 1 ? "s" : ""} modifiée{changedCount > 1 ? "s" : ""}
+              </Badge>
+            </div>
 
-        {/* Column headers */}
-        <div className="flex border-b">
-          <div className="flex-1 p-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-red-500/10 text-center border-r">
-            Original
+            <div className="flex items-center gap-2">
+              <Button
+                variant={onlyChanged ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setOnlyChanged(!onlyChanged)}
+                className="h-7 text-xs gap-1.5"
+              >
+                <Filter className="w-3.5 h-3.5" />
+                <span>{onlyChanged ? "Toutes les lignes" : "Lignes modifiées uniquement"}</span>
+              </Button>
+            </div>
           </div>
-          <div className="flex-1 p-2 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-green-500/10 text-center">
-            Anonymisé
+        </DialogHeader>
+
+        {/* Column labels */}
+        <div className="flex border-b border-border/60 text-xs font-semibold shrink-0">
+          <div className="w-12 shrink-0 py-1.5 text-center text-muted-foreground bg-muted/30 border-r border-border/50">
+            #
+          </div>
+          <div className="flex-1 py-1.5 px-3 uppercase tracking-wider text-red-400 bg-red-950/20 border-r border-border/50">
+            Original (Données sensibles)
+          </div>
+          <div className="flex-1 py-1.5 px-3 uppercase tracking-wider text-emerald-400 bg-emerald-950/20">
+            Anonymisé (Masqué)
           </div>
         </div>
 
         {/* Diff content */}
-        <ScrollArea className="flex-1">
-          <div className="min-w-full">
-            {diffLines.map((line) => (
+        <ScrollArea className="flex-1 min-h-0 font-mono text-xs leading-6">
+          <div className="divide-y divide-border/30">
+            {displayedLines.map((line) => (
               <div
                 key={line.lineNum}
-                className={`flex border-b border-border/50 ${
-                  line.hasChanges ? "bg-yellow-500/5" : ""
+                className={`flex items-start transition-colors ${
+                  line.hasChanges ? "bg-purple-950/20 hover:bg-purple-900/30" : "hover:bg-muted/30"
                 }`}
               >
                 {/* Line number */}
-                <div className="w-10 shrink-0 text-xs text-muted-foreground text-right pr-2 py-1 bg-muted/30 select-none">
+                <div className="w-12 shrink-0 py-1 pr-2 text-right text-muted-foreground/50 bg-muted/20 select-none border-r border-border/40 text-[11px]">
                   {line.lineNum}
                 </div>
-                
+
                 {/* Original */}
-                <div className={`flex-1 p-1 font-mono text-sm border-r border-border/50 ${
-                  line.hasChanges ? "bg-red-500/10" : ""
-                }`}>
-                  <pre className="whitespace-pre-wrap break-all">{line.original || "\u00A0"}</pre>
+                <div
+                  className={`flex-1 p-1.5 overflow-x-auto whitespace-pre font-mono border-r border-border/40 ${
+                    line.hasChanges ? "bg-red-500/10 text-red-300" : "text-muted-foreground/80"
+                  }`}
+                >
+                  {line.original || "\u00A0"}
                 </div>
-                
+
                 {/* Anonymized */}
-                <div className={`flex-1 p-1 font-mono text-sm ${
-                  line.hasChanges ? "bg-green-500/10 text-green-400" : ""
-                }`}>
-                  <pre className="whitespace-pre-wrap break-all">{line.anonymized || "\u00A0"}</pre>
+                <div
+                  className={`flex-1 p-1.5 overflow-x-auto whitespace-pre font-mono ${
+                    line.hasChanges ? "bg-emerald-500/10 text-emerald-300 font-semibold" : "text-muted-foreground/80"
+                  }`}
+                >
+                  {line.anonymized || "\u00A0"}
                 </div>
               </div>
             ))}
+
+            {displayedLines.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground text-xs font-sans">
+                {onlyChanged
+                  ? "Aucune modification détectée dans les logs."
+                  : "Aucun log à comparer."}
+              </div>
+            )}
           </div>
         </ScrollArea>
 
         {/* Footer */}
-        <div className="p-3 border-t text-center text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-4">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-red-500/30"></span> Original
+        <div className="pt-2 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground shrink-0">
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded bg-red-500/30 border border-red-500/50" />
+              Original
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-green-500/30"></span> Anonymisé
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded bg-emerald-500/30 border border-emerald-500/50" />
+              Anonymisé
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-3 h-3 rounded bg-yellow-500/30"></span> Modifié
-            </span>
+          </div>
+
+          <span className="text-[11px] text-muted-foreground/70">
+            {diffLines.length} lignes totales analysées
           </span>
         </div>
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

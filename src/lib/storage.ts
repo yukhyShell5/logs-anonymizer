@@ -34,7 +34,37 @@ export function loadRulesFromStorage(): AnonymizationRule[] | null {
   const stored = localStorage.getItem(RULES_STORAGE_KEY);
   if (!stored) return null;
   try {
-    return JSON.parse(stored);
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return null;
+
+    // Mise à niveau automatique des anciens patterns obsolètes/défaillants
+    return parsed.map((rule: AnonymizationRule) => {
+      // Corriger l'ancien regex de téléphone qui échouait avec les espaces
+      if (
+        rule.label === "PHONE" &&
+        (rule.pattern === "(?:\\+33|0)[1-9](?:[\\s.-]?\\d{2}){4}" || !rule.pattern.includes("\\s"))
+      ) {
+        return {
+          ...rule,
+          pattern:
+            "(?:\\+33[\\s.-]?(?:\\(0\\)[\\s.-]?)?|0)[1-9](?:[\\s.-]?\\d{2}){4}\\b|\\+\\d{1,3}[\\s.-]?(?:\\([0-9]{1,4}\\)[\\s.-]?)?[0-9]{3,4}[\\s.-]?[0-9]{3,4}\\b",
+        };
+      }
+
+      // Corriger l'ancien regex de token qui tronquait les JWTs ou coupait les tokens
+      if (
+        rule.label === "TOKEN" &&
+        rule.pattern === "(?:Bearer\\s+)?[A-Za-z0-9-_]{20,}"
+      ) {
+        return {
+          ...rule,
+          pattern:
+            "Bearer\\s+[a-zA-Z0-9_.~+/=-]+|\\beyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\b|\\b(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})\\b",
+        };
+      }
+
+      return rule;
+    });
   } catch {
     return null;
   }

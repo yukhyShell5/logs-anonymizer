@@ -49,42 +49,54 @@ export const HIGHLIGHT_COLORS = [
   { bg: "rgba(99, 102, 241, 0.3)", border: "#6366f1" },   // indigo
 ];
 
-// Règles prédéfinies communes
+// Règles prédéfinies communes et robustes
 export const PRESET_RULES: Omit<AnonymizationRule, "id">[] = [
   {
-    pattern: "[\\w.-]+@[\\w.-]+\\.\\w+",
+    pattern: "[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}",
     label: "EMAIL",
     color: HIGHLIGHT_COLORS[0].border,
     enabled: true,
   },
   {
-    pattern: "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b",
+    pattern: "\\b(?:(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\b",
     label: "IP",
     color: HIGHLIGHT_COLORS[1].border,
     enabled: true,
   },
   {
-    pattern: "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+    pattern: "\\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\b",
     label: "UUID",
     color: HIGHLIGHT_COLORS[2].border,
     enabled: true,
   },
   {
-    pattern: "eyJ[\\w-]+\\.[\\w-]+\\.[\\w-]+",
-    label: "JWT",
-    color: HIGHLIGHT_COLORS[3].border,
-    enabled: false,
-  },
-  {
-    pattern: "(?:\\+33|0)[1-9](?:[\\s.-]?\\d{2}){4}",
+    pattern: "(?:\\+33[\\s.-]?(?:\\(0\\)[\\s.-]?)?|0)[1-9](?:[\\s.-]?\\d{2}){4}\\b|\\+\\d{1,3}[\\s.-]?(?:\\([0-9]{1,4}\\)[\\s.-]?)?[0-9]{3,4}[\\s.-]?[0-9]{3,4}\\b",
     label: "PHONE",
+    color: HIGHLIGHT_COLORS[3].border,
+    enabled: true,
+  },
+  {
+    pattern: "Bearer\\s+[a-zA-Z0-9_.~+/=-]+|\\beyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\b|\\b(?:sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|AKIA[0-9A-Z]{16})\\b",
+    label: "TOKEN",
     color: HIGHLIGHT_COLORS[4].border,
+    enabled: true,
+  },
+  {
+    pattern: "\\beyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\b",
+    label: "JWT",
+    color: HIGHLIGHT_COLORS[5].border,
     enabled: false,
   },
   {
-    pattern: "(?:Bearer\\s+)?[A-Za-z0-9-_]{20,}",
-    label: "TOKEN",
-    color: HIGHLIGHT_COLORS[5].border,
+    pattern: "\\b(?:[0-9A-Fa-f]{2}[:-]){5}(?:[0-9A-Fa-f]{2})\\b",
+    label: "MAC",
+    color: HIGHLIGHT_COLORS[6 % HIGHLIGHT_COLORS.length].border,
+    enabled: false,
+  },
+  {
+    pattern: "(?<=(?:api[_-]?key|secret|password|auth)[=:\\s]+[\"']?)[a-zA-Z0-9_.~+/=-]{16,}(?=[\"']?)",
+    label: "API_KEY",
+    color: HIGHLIGHT_COLORS[7 % HIGHLIGHT_COLORS.length].border,
     enabled: false,
   },
 ];
@@ -112,12 +124,38 @@ function getLineAtPosition(text: string, position: number): string {
 }
 
 /**
+ * Résout les correspondances qui se chevauchent en privilégiant le match le plus long
+ * ou le premier en cas d'égalité de longueur.
+ */
+export function resolveNonOverlappingMatches(matches: Match[]): Match[] {
+  if (matches.length <= 1) return matches;
+
+  const sorted = [...matches].sort((a, b) => {
+    if (a.start !== b.start) return a.start - b.start;
+    return (b.end - b.start) - (a.end - a.start); // Plus long d'abord
+  });
+
+  const resolved: Match[] = [];
+  let lastEnd = 0;
+
+  for (const match of sorted) {
+    if (match.start >= lastEnd) {
+      resolved.push(match);
+      lastEnd = match.end;
+    }
+  }
+
+  return resolved;
+}
+
+/**
  * Trouve toutes les correspondances pour les règles activées
  * Les valeurs identiques reçoivent le même index de remplacement
- * Supporte les règles conditionnelles
+ * Supporte les règles conditionnelles et filtre les chevauchements
  */
 export function findMatches(logs: string, rules: AnonymizationRule[]): Match[] {
-  const matches: Match[] = [];
+  if (!logs) return [];
+  const rawMatches: Match[] = [];
   const valueIndexes: Record<string, Map<string, number>> = {};
 
   const enabledRules = rules.filter((r) => r.enabled);
@@ -130,6 +168,12 @@ export function findMatches(logs: string, rules: AnonymizationRule[]): Match[] {
       let nextIndex = 1;
 
       while ((match = regex.exec(logs)) !== null) {
+        // Éviter les boucles infinies sur les regex qui matchent la chaîne vide
+        if (match[0].length === 0) {
+          regex.lastIndex++;
+          continue;
+        }
+
         // Vérifier la condition si elle existe
         if (rule.condition) {
           const line = getLineAtPosition(logs, match.index);
@@ -149,7 +193,7 @@ export function findMatches(logs: string, rules: AnonymizationRule[]): Match[] {
           valueIndexes[rule.id].set(normalizedText, replacementIndex);
         }
 
-        matches.push({
+        rawMatches.push({
           ruleId: rule.id,
           text: matchText,
           start: match.index,
@@ -162,7 +206,8 @@ export function findMatches(logs: string, rules: AnonymizationRule[]): Match[] {
     }
   }
 
-  return matches.sort((a, b) => a.start - b.start);
+  // Résoudre les chevauchements pour que le surlignage et l'anonymisation correspondent exactement
+  return resolveNonOverlappingMatches(rawMatches);
 }
 
 /**
@@ -177,10 +222,15 @@ export function anonymize(logs: string, rules: AnonymizationRule[]): string {
  * Anonymise le texte et retourne le mapping complet
  */
 export function anonymizeWithMapping(logs: string, rules: AnonymizationRule[]): AnonymizationResult {
+  if (!logs) {
+    return { anonymized: "", mapping: {}, reverseMapping: {} };
+  }
+
   const matches = findMatches(logs, rules);
   const mapping: AnonymizationMapping = {};
   const reverseMapping: AnonymizationMapping = {};
 
+  // Remplacement de l'arrière vers l'avant pour préserver les index
   const sortedMatches = [...matches].sort((a, b) => b.start - a.start);
 
   let result = logs;

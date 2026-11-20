@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { AnonymizationMapping, deanonymize } from "@/lib/anonymizer";
 import { downloadAsFile, exportMappingToJson, importMappingFromJson, readFileContent } from "@/lib/storage";
-import { useRef } from "react";
+import { ArrowLeftRight, Download, Upload, Undo2 } from "lucide-react";
 
 interface MappingPanelProps {
   mapping: AnonymizationMapping;
@@ -22,11 +26,11 @@ export function MappingPanel({ mapping, onDeanonymize }: MappingPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importedMapping, setImportedMapping] = useState<AnonymizationMapping | null>(null);
 
-  const mappingEntries = Object.entries(mapping);
   const activeMapping = importedMapping || mapping;
+  const activeEntriesCount = Object.keys(activeMapping).length;
 
   const handleExport = () => {
-    const json = exportMappingToJson(mapping);
+    const json = exportMappingToJson(activeMapping);
     const timestamp = new Date().toISOString().slice(0, 10);
     downloadAsFile(json, `mapping-${timestamp}.json`);
     toast.success("Mapping exporté");
@@ -42,10 +46,10 @@ export function MappingPanel({ mapping, onDeanonymize }: MappingPanelProps) {
         setImportedMapping(imported);
         toast.success("Mapping importé", { description: `${Object.keys(imported).length} entrées` });
       } else {
-        toast.error("Format invalide");
+        toast.error("Format de mapping invalide");
       }
     } catch {
-      toast.error("Erreur de lecture");
+      toast.error("Erreur lors de la lecture du fichier");
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -54,86 +58,118 @@ export function MappingPanel({ mapping, onDeanonymize }: MappingPanelProps) {
     if (!deanonText.trim()) return;
     const result = deanonymize(deanonText, activeMapping);
     onDeanonymize?.(result);
-    toast.success("Texte désanonymisé");
+    setIsOpen(false);
+    toast.success("Texte désanonymisé et rechargé dans l'éditeur");
   };
 
-  if (mappingEntries.length === 0 && !importedMapping) {
-    return null;
-  }
-
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-        Mapping ({mappingEntries.length})
-      </button>
+        <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
+        <span>Mapping</span>
+        {activeEntriesCount > 0 && (
+          <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20">
+            {activeEntriesCount}
+          </Badge>
+        )}
+      </Button>
 
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <Card className="absolute left-0 top-8 z-50 w-96 p-4 bg-card/95 backdrop-blur shadow-xl">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium">Mapping de désanonymisation</span>
-              <div className="flex gap-1">
-                <button
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <div className="flex items-center justify-between pr-4">
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <ArrowLeftRight className="w-4 h-4 text-blue-400" />
+                Mapping de Désanonymisation
+              </DialogTitle>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={() => fileInputRef.current?.click()}
-                  className="p-1.5 text-muted-foreground hover:text-foreground rounded hover:bg-muted"
-                  title="Importer"
+                  className="h-7 text-xs gap-1"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                </button>
-                <button
+                  <Upload className="w-3 h-3" />
+                  Importer
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
                   onClick={handleExport}
-                  disabled={mappingEntries.length === 0}
-                  className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50 rounded hover:bg-muted"
-                  title="Exporter"
+                  disabled={activeEntriesCount === 0}
+                  className="h-7 text-xs gap-1"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                </button>
+                  <Download className="w-3 h-3" />
+                  Exporter
+                </Button>
+                <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
               </div>
-              <input ref={fileInputRef} type="file" accept=".json" onChange={handleImport} className="hidden" />
             </div>
+          </DialogHeader>
 
-            {/* Désanonymisation */}
-            <div className="mb-3 p-2 bg-muted/50 rounded">
-              <label className="text-xs text-muted-foreground mb-1 block">Coller un texte anonymisé pour le restaurer:</label>
-              <textarea
-                value={deanonText}
-                onChange={(e) => setDeanonText(e.target.value)}
-                placeholder="[EMAIL_1] [IP_1]..."
-                className="w-full h-16 p-2 text-xs font-mono bg-background border rounded resize-none"
-              />
-              <Button size="sm" onClick={handleDeanonymize} disabled={!deanonText.trim()} className="w-full mt-2">
-                Désanonymiser
-              </Button>
+          {/* Section Désanonymisation */}
+          <div className="space-y-2 p-3 rounded-lg bg-muted/40 border border-border/60">
+            <label className="text-xs font-medium text-foreground flex items-center justify-between">
+              <span>Restaurer un texte anonymisé :</span>
+              <span className="text-[11px] text-muted-foreground font-normal">
+                Remplace les tags ([EMAIL_1], [IP_1]...) par leur valeur d&apos;origine
+              </span>
+            </label>
+            <textarea
+              value={deanonText}
+              onChange={(e) => setDeanonText(e.target.value)}
+              placeholder="Collez ici votre réponse LLM ou texte contenant [TAG_X]..."
+              className="w-full h-20 p-2.5 text-xs font-mono bg-background border border-input rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <Button
+              size="sm"
+              onClick={handleDeanonymize}
+              disabled={!deanonText.trim()}
+              className="w-full h-8 text-xs gap-1.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+              Désanonymiser et charger dans l&apos;éditeur
+            </Button>
+          </div>
+
+          {/* Liste des entrées */}
+          <div className="flex-1 min-h-0 flex flex-col pt-2">
+            <div className="flex items-center justify-between pb-2 text-xs text-muted-foreground font-medium">
+              <span>Remplacement ({activeEntriesCount})</span>
+              <span>Valeur originale</span>
             </div>
-
-            {/* Liste des mappings */}
-            <ScrollArea className="max-h-48">
-              <div className="space-y-1">
-                {Object.entries(activeMapping).map(([placeholder, original]) => (
-                  <div key={placeholder} className="flex items-center gap-2 text-xs p-1 rounded hover:bg-muted">
-                    <Badge variant="secondary" className="font-mono shrink-0">
-                      {placeholder}
-                    </Badge>
-                    <span className="text-muted-foreground">→</span>
-                    <span className="font-mono text-foreground truncate">{original}</span>
-                  </div>
-                ))}
-              </div>
+            <ScrollArea className="flex-1 max-h-56 pr-2">
+              {activeEntriesCount === 0 ? (
+                <div className="text-center py-8 text-xs text-muted-foreground">
+                  Aucun mapping actif. Les correspondances trouvées dans vos logs apparaîtront ici.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {Object.entries(activeMapping).map(([placeholder, original]) => (
+                    <div
+                      key={placeholder}
+                      className="flex items-center justify-between gap-3 text-xs p-2 rounded-md bg-muted/30 border border-border/40 hover:bg-muted/60 transition-colors"
+                    >
+                      <Badge variant="secondary" className="font-mono text-[11px] shrink-0 font-medium">
+                        {placeholder}
+                      </Badge>
+                      <span className="text-muted-foreground/60 text-xs">→</span>
+                      <span className="font-mono text-foreground truncate max-w-[280px]" title={original}>
+                        {original}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </ScrollArea>
-          </Card>
-        </>
-      )}
-    </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

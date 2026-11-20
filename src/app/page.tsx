@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
-import { Shield } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback, useSyncExternalStore } from "react";
+import { Shield, Undo2, Redo2, Lock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { LogsPanel } from "@/components/LogsPanel";
-import { RulesEditor } from "@/components/RulesEditor";
+import { RulesBar } from "@/components/RulesBar";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { MappingPanel } from "@/components/MappingPanel";
 import { ProfilesPanel } from "@/components/ProfilesPanel";
@@ -14,6 +14,7 @@ import { RegexBuilder } from "@/components/RegexBuilder";
 import { LogTemplatesPanel } from "@/components/LogTemplatesPanel";
 import { ThemeToggle } from "@/components/ThemeProvider";
 import { useUndoRedo } from "@/hooks/useUndoRedo";
+import { Button } from "@/components/ui/button";
 import {
   AnonymizationRule,
   findMatches,
@@ -23,19 +24,29 @@ import {
 } from "@/lib/anonymizer";
 import { saveToHistory, saveRulesToStorage, loadRulesFromStorage, downloadAsFile, exportRulesToJson } from "@/lib/storage";
 
-// Créer les règles initiales avec des IDs statiques pour éviter le mismatch d'hydratation
+const DEFAULT_SAMPLE_LOG = `2024-11-20T10:14:22.104Z [INFO] AuthHandler: User login attempt from ip=192.168.1.42 with email=alex.dupont@corp-service.com
+2024-11-20T10:14:22.180Z [DEBUG] SessionManager: Generated session token Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFsZXgiLCJpYXQiOjE1MTYyMzkwMjJ9.4pePIRqda7GZc
+2024-11-20T10:14:23.012Z [INFO] PaymentService: Processing order id=e4b8a7c2-9f31-4b72-8821-6d9b01c54e89 for customer phone=+33 6 12 34 56 78
+2024-11-20T10:14:24.450Z [WARN] DatabaseClient: Query timeout on node 10.0.4.15:5432 - retrying query for user_id=e4b8a7c2-9f31-4b72-8821-6d9b01c54e89
+2024-11-20T10:14:25.890Z [INFO] NotificationWorker: Sent verification email to alex.dupont@corp-service.com via smtp server 192.168.1.42`;
+
+// Créer les règles initiales avec des IDs statiques (EMAIL, IP, UUID, PHONE, TOKEN)
 function createInitialRules(): AnonymizationRule[] {
-  return PRESET_RULES.slice(0, 3).map((preset, index) => ({
+  return PRESET_RULES.slice(0, 5).map((preset, index) => ({
     ...preset,
     id: `initial-rule-${index}`,
-    color: HIGHLIGHT_COLORS[index].border,
+    color: HIGHLIGHT_COLORS[index % HIGHLIGHT_COLORS.length].border,
+    enabled: true,
   }));
 }
 
 export default function Home() {
   const [logs, setLogs] = useState("");
-  const [isClient, setIsClient] = useState(false);
-  const [pendingPattern, setPendingPattern] = useState("");
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const [showDiff, setShowDiff] = useState(false);
 
   // Undo/Redo pour les règles
@@ -51,10 +62,11 @@ export default function Home() {
 
   // Charger les règles sauvegardées au montage
   useEffect(() => {
-    setIsClient(true);
     const savedRules = loadRulesFromStorage();
     if (savedRules && savedRules.length > 0) {
-      resetRules(savedRules);
+      queueMicrotask(() => {
+        resetRules(savedRules);
+      });
     }
   }, [resetRules]);
 
@@ -76,10 +88,10 @@ export default function Home() {
   // Sauvegarder dans l'historique (debounced) quand les logs changent significativement
   useEffect(() => {
     if (!isClient || !logs.trim() || matches.length === 0) return;
-    
+
     const timer = setTimeout(() => {
       saveToHistory(logs, rules, matches.length);
-    }, 5000);
+    }, 4000);
 
     return () => clearTimeout(timer);
   }, [logs, rules, matches.length, isClient]);
@@ -123,29 +135,28 @@ export default function Home() {
     setRules((prev) => [...prev, newRule]);
   }, [rules.length, setRules]);
 
-  // Charger un sample depuis les templates
-  const handleLoadSample = useCallback((sample: string) => {
-    setLogs(sample);
+  // Charger un sample depuis les templates ou bouton direct
+  const handleLoadSample = useCallback((sample?: string) => {
+    setLogs(sample || DEFAULT_SAMPLE_LOG);
+    toast.success("Exemple de logs chargé");
   }, []);
 
   // Raccourcis clavier globaux
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+S pour sauvegarder les règles
-      if (e.ctrlKey && e.key === "s") {
+      // Ctrl+S pour sauvegarder/exporter les règles
+      if (e.ctrlKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         const json = exportRulesToJson(rules);
         downloadAsFile(json, "anonymizer-rules.json");
-        toast.success("Règles exportées", {
-          description: "anonymizer-rules.json téléchargé",
-        });
+        toast.success("Règles exportées (anonymizer-rules.json)");
       }
       // Ctrl+Shift+C pour copier le texte anonymisé
       if (e.ctrlKey && e.shiftKey && e.key === "C") {
         e.preventDefault();
         if (anonymizedText) {
           navigator.clipboard.writeText(anonymizedText);
-          toast.success("Texte anonymisé copié");
+          toast.success("Texte anonymisé copié dans le presse-papiers");
         } else {
           toast.error("Rien à copier", {
             description: "Entrez des logs pour anonymiser",
@@ -153,24 +164,24 @@ export default function Home() {
         }
       }
       // Ctrl+D pour diff view
-      if (e.ctrlKey && e.key === "d") {
+      if (e.ctrlKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
         setShowDiff(true);
       }
       // Ctrl+Z pour undo
-      if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
+      if (e.ctrlKey && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         if (canUndo) {
           undo();
-          toast.success("Annulé");
+          toast.success("Modification de règle annulée");
         }
       }
       // Ctrl+Shift+Z ou Ctrl+Y pour redo
-      if ((e.ctrlKey && e.shiftKey && e.key === "Z") || (e.ctrlKey && e.key === "y")) {
+      if ((e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") || (e.ctrlKey && e.key.toLowerCase() === "y")) {
         e.preventDefault();
         if (canRedo) {
           redo();
-          toast.success("Rétabli");
+          toast.success("Modification de règle rétablie");
         }
       }
     };
@@ -180,73 +191,84 @@ export default function Home() {
   }, [rules, anonymizedText, canUndo, canRedo, undo, redo]);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-background via-background to-purple-950/20 overflow-hidden pt-[2.25rem]">
-      {/* Header */}
-      <header className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-50 flex-shrink-0">
-        <div className="max-w-[1800px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden pt-[2.25rem]">
+      {/* App Header */}
+      <header className="border-b border-border/60 bg-background/95 backdrop-blur-md sticky top-0 z-40 shrink-0">
+        <div className="max-w-[1920px] mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+          {/* Left Brand */}
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-xs">
+              <Shield className="w-4 h-4" />
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-                Log Anonymizer
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Anonymisez vos logs avant de les partager avec un LLM
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm sm:text-base font-bold bg-gradient-to-r from-purple-400 via-purple-300 to-blue-400 bg-clip-text text-transparent">
+                  Log Anonymizer
+                </h1>
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full font-medium">
+                  <Lock className="w-2.5 h-2.5" /> 100% Local
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground hidden md:block">
+                Masquez vos données sensibles (IPs, emails, tokens...) avant envoi au LLM
               </p>
             </div>
           </div>
-          {/* Right side controls */}
-          <div className="flex items-center gap-4">
-            {/* Undo/Redo buttons */}
-            <div className="flex items-center gap-1">
-              <button
+
+          {/* Right Tools Controls */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Undo/Redo Buttons */}
+            <div className="flex items-center gap-0.5 bg-muted/40 border border-border/50 rounded-md p-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={undo}
                 disabled={!canUndo}
-                className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors rounded hover:bg-muted"
-                title="Annuler (Ctrl+Z)"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                title="Annuler modification règle (Ctrl+Z)"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                </svg>
-              </button>
-              <button
+                <Undo2 className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={redo}
                 disabled={!canRedo}
-                className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors rounded hover:bg-muted"
-                title="Rétablir (Ctrl+Shift+Z)"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                title="Rétablir modification règle (Ctrl+Shift+Z)"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
-                </svg>
-              </button>
+                <Redo2 className="w-3.5 h-3.5" />
+              </Button>
             </div>
-            {isClient && Object.keys(mapping).length > 0 && (
-              <MappingPanel mapping={mapping} onDeanonymize={handleDeanonymize} />
+
+            {/* Quick Sample Button if empty */}
+            {!logs && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleLoadSample()}
+                className="h-8 gap-1.5 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Exemple</span>
+              </Button>
             )}
+
+            {/* Modals & Tools */}
+            {isClient && <MappingPanel mapping={mapping} onDeanonymize={handleDeanonymize} />}
             {isClient && <ProfilesPanel currentRules={rules} onLoadProfile={handleLoadProfile} />}
             {isClient && <RegexBuilder onPatternCreate={handlePatternCreate} testText={logs} />}
             {isClient && <LogTemplatesPanel onApplyTemplate={handleAddAllRules} onLoadSample={handleLoadSample} />}
             {isClient && <HistoryPanel onRestore={handleRestore} />}
-            <button
-              onClick={() => setShowDiff(true)}
-              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-              title="Ctrl+D"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
-              </svg>
-              Diff
-            </button>
+
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      {/* Auto-detect panel */}
-      {isClient && logs.length > 50 && (
-        <div className="max-w-[1800px] mx-auto w-full px-4 py-2">
+      {/* Auto-detect notification banner */}
+      {isClient && logs.length > 30 && (
+        <div className="shrink-0">
           <AutoDetectPanel
             logs={logs}
             rules={rules}
@@ -256,38 +278,42 @@ export default function Home() {
         </div>
       )}
 
-      {/* Main Content - Split View 2/3 - 1/3 */}
-      <main className="flex-1 flex max-w-[1800px] mx-auto w-full min-h-0">
-        {/* Logs Panel - 2/3 */}
-        <div className="flex-[2] p-4 border-r border-border/50 min-h-0">
+      {/* Main Workspace */}
+      <main className="flex-1 flex flex-col max-w-[1920px] mx-auto w-full min-h-0 overflow-hidden p-3 gap-2.5">
+        {/* Interactive Rules Bar directly above the logs */}
+        <div className="shrink-0">
+          <RulesBar
+            rules={rules}
+            onRulesChange={setRules}
+            matches={matches}
+            logs={logs}
+          />
+        </div>
+
+        {/* Logs Panel (Original + Anonymisé) - 100% full width and height */}
+        <div className="flex-1 min-h-0 flex flex-col min-w-0">
           <LogsPanel
             logs={logs}
             onLogsChange={setLogs}
             matches={matches}
             rules={rules}
-            pendingPattern={pendingPattern}
             anonymizedText={anonymizedText}
-          />
-        </div>
-
-        {/* Rules Panel - 1/3 */}
-        <div className="flex-1 p-4 min-h-0 overflow-hidden">
-          <RulesEditor
-            rules={rules}
-            onRulesChange={setRules}
-            matches={matches}
-            logs={logs}
-            onPendingPatternChange={setPendingPattern}
+            onOpenDiff={() => setShowDiff(true)}
+            onLoadSample={() => handleLoadSample()}
           />
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 py-2 text-center text-xs text-muted-foreground flex-shrink-0">
-        <div className="flex items-center justify-center gap-4">
-          <span>Vos logs restent en local</span>
-          <span className="text-muted-foreground/50">•</span>
-          <span className="text-muted-foreground/70">Ctrl+Z undo • Ctrl+D diff • Bulk import ✓</span>
+      {/* Sleek Minimal Footer */}
+      <footer className="border-t border-border/50 py-1.5 px-4 text-center text-[11px] text-muted-foreground shrink-0 bg-background/50">
+        <div className="flex items-center justify-between max-w-[1920px] mx-auto">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            Aucune donnée n&apos;est transmise à un serveur externe. Traitement 100% local.
+          </span>
+          <span className="hidden sm:inline text-muted-foreground/60">
+            Ctrl+D diff • Ctrl+Z undo • Ctrl+Shift+C copier • Ctrl+S exporter règles
+          </span>
         </div>
       </footer>
 
